@@ -5,15 +5,20 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.os.Bundle;
 import android.util.Log;
 
 import static android.support.v4.content.ContextCompat.getSystemService;
 
 //data needed to place the user in the GVR 3d space
-public class User implements SensorEventListener {
+public class User implements SensorEventListener, LocationListener {
     private static final String TAG = "User";
     private float latitude, longitude;
     private SensorManager sm;
+    private Location loc;
     private Sensor gyroscope, magnetometer, accelerometer;
 
     private float[] orientationData = new float[3], ac = new float[3], ma = new float[3], rm = new float[9];
@@ -98,5 +103,30 @@ public class User implements SensorEventListener {
      */
     public float getRoll() {
         return orientationData[2];
+    }
+
+    @Override
+    public void onLocationChanged(Location location) {
+        loc = location;
+        Log.i(TAG, "Location: (" + loc.getLatitude() + ", " + loc.getLongitude() + ")");
+        //loc.getBearing will return non-zero when 2 consequent points are far enough
+        //apart (so you're moving fast enough in a "direction"
+        //TODO: Include loc.getBearing() in the average azimuth if != 0 and bearing accuracy is relatively high
+        //TODO: loc.BearingTo() would be good for placing an earcon in the dir. of the destination if the user is too off course
+    }
+
+    @Override
+    public void onStatusChanged(String s, int i, Bundle bundle) {
+
+    }
+
+    @Override
+    public void onProviderEnabled(String s) {
+
+    }
+
+    @Override
+    public void onProviderDisabled(String s) {
+
     }
 }

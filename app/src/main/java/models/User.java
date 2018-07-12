@@ -1,6 +1,8 @@
 package models;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Context;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -9,6 +11,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 
 import static android.support.v4.content.ContextCompat.getSystemService;
@@ -16,13 +19,22 @@ import static android.support.v4.content.ContextCompat.getSystemService;
 //data needed to place the user in the GVR 3d space
 public class User implements SensorEventListener, LocationListener {
     private static final String TAG = "User";
-    private float latitude, longitude;
+    private double scale = 2.0;
+    private LocationManager lm;
     private SensorManager sm;
     private Location loc;
+    Vector3 xy = new Vector3(), appSpaceXY = new Vector3(), destinationXY = new Vector3();
     private Sensor gyroscope, magnetometer, accelerometer;
+    private Compass compass;
+    private Activity activity;
+    private Context ctx;
 
     private float[] orientationData = new float[3], ac = new float[3], ma = new float[3], rm = new float[9];
-    public User(SensorManager sm) {
+    public User(Activity fa, Context ctx, SensorManager sm) {
+        activity = fa;
+        this.ctx = ctx;
+        compass = new Compass(activity);
+        lm = (LocationManager)ctx.getSystemService(Context.LOCATION_SERVICE);
         orientationData = new float[3];
         this.sm = sm;
         gyroscope = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE); //not using rn
@@ -80,7 +92,8 @@ public class User implements SensorEventListener, LocationListener {
      *          -pi <= return <= pi
      */
     public float getAzimuth() {
-        return orientationData[0];
+        //Log.i(TAG, "Yaw:" + orientationData[0]);
+        return -orientationData[0];
     }
 
     /**
@@ -105,10 +118,37 @@ public class User implements SensorEventListener, LocationListener {
         return orientationData[2];
     }
 
+
+    public void setDestinationXY(Vector3 vec) {
+        this.destinationXY = vec; //in real world coord
+    }
+
+    public Vector3 getAppSpaceXY() {
+        return appSpaceXY;
+    }
+
     @Override
     public void onLocationChanged(Location location) {
         loc = location;
-        Log.i(TAG, "Location: (" + loc.getLatitude() + ", " + loc.getLongitude() + ")");
+        location.setAltitude(0);
+
+        xy.x = loc.getLatitude();
+        xy.y = loc.getLongitude();
+        Location destLoc = new Location("");
+        destLoc.setLatitude(destinationXY.x);
+        destLoc.setLongitude(destinationXY.y);
+
+        float bearing = location.bearingTo(destLoc);
+        Log.d(TAG, "Location bearing: " + bearing);
+        compass.setBearingDegrees(bearing);
+
+        appSpaceXY = xy.subtract(destinationXY); //destination to origin
+        Log.i(TAG, "Diff: " + appSpaceXY.toString());
+        Log.i(TAG, "Device dir: " + ((getAzimuth()+Math.PI)*180/Math.PI));
+        Log.i(TAG, "Needed dir: " + ((loc.bearingTo(destLoc)+Math.PI))*180/Math.PI);
+        appSpaceXY = appSpaceXY.scalarMultiply(1/scale);
+
+        //Log.i(TAG, "Location: (" + loc.getLatitude() + ", " + loc.getLongitude() + ")");
         //loc.getBearing will return non-zero when 2 consequent points are far enough
         //apart (so you're moving fast enough in a "direction"
         //TODO: Include loc.getBearing() in the average azimuth if != 0 and bearing accuracy is relatively high
@@ -122,11 +162,21 @@ public class User implements SensorEventListener, LocationListener {
 
     @Override
     public void onProviderEnabled(String s) {
-
+        requestLocationUpdates();
     }
 
     @Override
     public void onProviderDisabled(String s) {
+        lm.removeUpdates(this);
+    }
 
+    public void updatePath() {
+        appSpaceXY = (xy.pathTo(destinationXY)).scalarMultiply(1/scale);
+    }
+
+    @SuppressLint("MissingPermission")
+    private void requestLocationUpdates()
+    {
+        lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 0, this);
     }
 }

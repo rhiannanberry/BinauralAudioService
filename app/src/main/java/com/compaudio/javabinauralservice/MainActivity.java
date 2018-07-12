@@ -1,6 +1,7 @@
 package com.compaudio.javabinauralservice;
 
 import android.content.Intent;
+import android.hardware.SensorManager;
 import android.media.MediaPlayer;
 import android.opengl.GLES20;
 import android.provider.Settings;
@@ -23,6 +24,8 @@ import java.util.ArrayList;
 
 import javax.microedition.khronos.egl.EGLConfig;
 
+import models.User;
+
 public class MainActivity extends GvrActivity implements View.OnClickListener, GvrView.StereoRenderer {
     private static final String TAG = "BinauralMainActivity";
 
@@ -34,6 +37,8 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
     private ArrayList<Integer> musicSourceId;
     private int currentSong = 0, sourceId = GvrAudioEngine.INVALID_ID;
     private Thread musicLoadingThread;
+
+    private User user;
 
     protected float[] modelPosition;
 
@@ -58,8 +63,10 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
         }
         setGvrView(gv);
 
+
         modelPosition = new float[] {0.0f, 0.0f, -MAX_MODEL_DISTANCE / 2.0f};
 
+        user = new User((SensorManager)getSystemService(SENSOR_SERVICE));
 
         //This is the object that does the spatializing
         //In order to actually move the sound, we have to do ae.Update() every "frame" after initializing
@@ -92,12 +99,14 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
     @Override
     public void onPause() {
         ae.pause();
+        user.unregisterListeners();
         super.onPause();
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        user.registerListeners();
         ae.resume();
     }
 
@@ -126,6 +135,8 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
             Log.i(TAG, "update, is sound playing? " + ae.isSoundPlaying(sourceId));
 
         }
+
+        Log.i(TAG, "Testing user update; Azimuth: " + user.getAzimuth());
 
     }
 
@@ -169,6 +180,7 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
                         ae.pause();
 
                         ae.playSound(sourceId, true /* looped playback */);
+
                         Log.i(TAG, "End of setup");
                     }
                 })

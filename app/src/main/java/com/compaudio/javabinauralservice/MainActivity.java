@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.SensorManager;
+import android.location.Location;
 import android.location.LocationManager;
 import android.media.MediaPlayer;
 import android.opengl.GLES20;
@@ -76,11 +77,11 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
         modelPosition = new float[]{0.0f, 0.0f, -MAX_MODEL_DISTANCE / 2.0f};
 
         LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        user = new User(this, this, (SensorManager)getSystemService(SENSOR_SERVICE));
+        user = new User(this, this, 20);
         lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, user);
 
         //TODO: Move this to actual spot later
-        user.setDestinationXY(new Vector3(33.783179, -84.405462));
+        user.setDestination(new Vector3(33.774744, -84.396382)); //Rocky Mountain pizza
 
         //This is the object that does the spatializing
         //In order to actually move the sound, we have to do ae.Update() every "frame" after initializing
@@ -114,14 +115,14 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
     @Override
     public void onPause() {
         ae.pause();
-        user.unregisterListeners();
+        user.compass.stopBearing();
         super.onPause();
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        user.registerListeners();
+        user.compass.startBearing();
         ae.resume();
     }
 
@@ -146,16 +147,11 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
     @Override
     public void onNewFrame(HeadTransform headTransform) {
         //update cameraPosition
-        Vector3 head = user.getAppSpaceXY();
-        //Coordinate systems suck and are dumb
-        //converting coords (lat, lon) (x,y,0)
-        //to GVR's coord system (x is same, y+ is up, z+ is forward coming toward you)
-        //so to make sense, (x,y,0) ---> (x, 0, -y);
-        ae.setHeadPosition((float)head.x, (float)head.z, -(float)head.y);
-        Vector3 eulerRot = new Vector3(0,(float)(user.getAzimuth()*180/Math.PI), 0);
-        float[] quat = eulerRot.toQuaternion();
+        Vector3 pos = user.getPosition();
+        float[] q = user.getQuaternion();
+        ae.setHeadPosition((float)pos.x, (float)pos.y, (float)pos.z);
         //head rotation is easier bc we're just changing one axis rn (yaw)
-        ae.setHeadRotation(quat[0], quat[1], quat[2], quat[3]);
+        ae.setHeadRotation(q[0], q[1], q[2], q[3]);
 
         if (sourceId  != ae.INVALID_ID) {
             ae.update();

@@ -7,6 +7,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.support.v4.app.FragmentActivity;
+import android.util.Log;
 
 public class Compass implements SensorEventListener {
     private static final String TAG = "Compass";
@@ -35,10 +36,10 @@ public class Compass implements SensorEventListener {
 
         boolean deviceSensorCompatible = true;
 
-        if(!sensorManager.registerListener(this, gsensor, SensorManager.SENSOR_DELAY_GAME))
+        if(!sensorManager.registerListener(this, gsensor, SensorManager.SENSOR_DELAY_FASTEST))
             deviceSensorCompatible = false;
 
-        if(!sensorManager.registerListener(this, msensor, SensorManager.SENSOR_DELAY_GAME))
+        if(!sensorManager.registerListener(this, msensor, SensorManager.SENSOR_DELAY_FASTEST))
             deviceSensorCompatible = false;
 
     }
@@ -62,6 +63,10 @@ public class Compass implements SensorEventListener {
     {
         bearing = false;
         stop();
+    }
+
+    public float getAzimuth() {
+        return azimuth%360;
     }
 
     @Override
@@ -103,13 +108,17 @@ public class Compass implements SensorEventListener {
             if (success) {
                 float orientation[] = new float[3];
                 SensorManager.getOrientation(R, orientation);
-                // Log.d(TAG, "azimuth (rad): " + azimuth);
+                Log.d(TAG, "Bearing degrees: " + bearingDegrees);
                 azimuth = (float) Math.toDegrees(orientation[0]); // orientation
                 azimuth = (azimuth + 360) % 360;
+                Log.d(TAG, "azimuth (rad): " + azimuth);
+
 
                 if (bearing) {
                     if (bearingDegrees != -1) {
                         azimuth -= bearingDegrees;
+                        Log.d(TAG, "azimuth with bearing (rad): " + azimuth);
+
                     }
                 }
             }

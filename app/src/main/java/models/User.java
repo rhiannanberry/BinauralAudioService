@@ -17,62 +17,29 @@ import android.util.Log;
 import static android.support.v4.content.ContextCompat.getSystemService;
 
 //data needed to place the user in the GVR 3d space
-public class User implements SensorEventListener, LocationListener {
+public class User implements LocationListener {
     private static final String TAG = "User";
-    private double scale = 2.0;
-    private LocationManager lm;
-    private SensorManager sm;
-    private Location loc;
-    Vector3 xy = new Vector3(), appSpaceXY = new Vector3(), destinationXY = new Vector3();
-    private Sensor gyroscope, magnetometer, accelerometer;
-    private Compass compass;
+
     private Activity activity;
     private Context ctx;
 
-    private float[] orientationData = new float[3], ac = new float[3], ma = new float[3], rm = new float[9];
-    public User(Activity fa, Context ctx, SensorManager sm) {
+    private LocationManager lm;
+    private Location loc, destination;
+    public Compass compass;
+
+    Vector3 xy = new Vector3(), position = new Vector3(), destinationVec = new Vector3();
+
+    private double startDistance = 10.0;
+    private double adjustedScale = -1;
+    boolean locationSet = false, destinationSet = false;
+
+    public User(Activity fa, Context ctx, double startDistance) {
         activity = fa;
         this.ctx = ctx;
+        this.startDistance = startDistance;
         compass = new Compass(activity);
         lm = (LocationManager)ctx.getSystemService(Context.LOCATION_SERVICE);
-        orientationData = new float[3];
-        this.sm = sm;
-        gyroscope = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE); //not using rn
-        magnetometer = sm.getDefaultSensor(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR);
-        accelerometer = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         Log.i(TAG, "Initialized");
-    }
-
-
-    public void registerListeners() {
-        //high accuracy makes it slower
-        sm.registerListener(this, accelerometer,SensorManager.SENSOR_STATUS_ACCURACY_HIGH);
-        sm.registerListener(this, magnetometer,SensorManager.SENSOR_STATUS_ACCURACY_HIGH);
-    }
-
-    public void unregisterListeners() {
-        sm.unregisterListener(this, accelerometer);
-        sm.unregisterListener(this, magnetometer);
-    }
-
-    @Override
-    public void onSensorChanged(SensorEvent sensorEvent) {
-        if (sensorEvent.sensor == magnetometer) {
-            ma = sensorEvent.values;
-        }
-
-        if (sensorEvent.sensor == accelerometer) {
-            ac = sensorEvent.values;
-        }
-        sm.getRotationMatrix(rm, null, ac, ma);
-        orientationData = sm.getOrientation(rm, orientationData);
-
-        adjustDeviceHeading();
-    }
-
-    @Override
-    public void onAccuracyChanged(Sensor sensor, int i) {
-
     }
 
     /**
@@ -83,76 +50,75 @@ public class User implements SensorEventListener, LocationListener {
         //we might be able to guestimate the phone orientation and adjust accordingly
     }
 
-    /**
-     * Part of Magnetometer sensor result
-     * Will be the most likely candidate for direction we're facing wrt north
-     * @return  Azimuth, angle of rotation about the -z axis.
-     *          This value represents the angle between the device's
-     *          y axis and the magnetic north pole. Returns 0 when facing north.
-     *          -pi <= return <= pi
-     */
-    public float getAzimuth() {
-        //Log.i(TAG, "Yaw:" + orientationData[0]);
-        return -orientationData[0];
+    public void setDestination(Location destination) {
+        destinationSet = true;
+        this.destination = destination;
+        destinationVec = new Vector3(destination.getLatitude(), destination.getLongitude());
     }
 
-    /**
-     * Part of Magnetometer sensor result
-     * @return  Pitch, angle of rotation about the x axis. This value represents
-     *          the angle between a plane parallel to the device's screen and a
-     *          plane parallel to the ground.
-     *          -pi <= return <= pi
-     */
-    public float getPitch() {
-        return orientationData[1];
+    public void setDestination(Vector3 vec) {
+        destinationSet = true;
+        this.destinationVec = vec; //in real world coord
+        destination = new Location("");
+        destination.setLatitude(vec.x);
+        destination.setLongitude(vec.y);
     }
 
-    /**
-     * Part of Magnetometer sensor result
-     * @return  Roll, angle of rotation about the y axis. This value represents
-     *          the angle between a plane perpendicular to the device's screen
-     *          and a plane perpendicular to the ground.
-     *          -pi/2 <= return <= pi/2
-     */
-    public float getRoll() {
-        return orientationData[2];
+    public Vector3 getPosition() {
+        return position;
     }
 
-
-    public void setDestinationXY(Vector3 vec) {
-        this.destinationXY = vec; //in real world coord
-    }
-
-    public Vector3 getAppSpaceXY() {
-        return appSpaceXY;
+    public float[] getQuaternion() {
+        //360- because we flipped this for a right hand coordinated space
+        Vector3 euler = new Vector3(0, ((-compass.getAzimuth())*Math.PI/180),0);
+        return euler.toQuaternion();
     }
 
     @Override
     public void onLocationChanged(Location location) {
+        locationSet = true;
         loc = location;
         location.setAltitude(0);
 
         xy.x = loc.getLatitude();
         xy.y = loc.getLongitude();
-        Location destLoc = new Location("");
-        destLoc.setLatitude(destinationXY.x);
-        destLoc.setLongitude(destinationXY.y);
 
-        float bearing = location.bearingTo(destLoc);
+        float bearing = location.bearingTo(destination);
+        Log.i(TAG, "Bearing: " + bearing);
+        float distance = location.distanceTo(destination);
         Log.d(TAG, "Location bearing: " + bearing);
-        compass.setBearingDegrees(bearing);
 
-        appSpaceXY = xy.subtract(destinationXY); //destination to origin
-        Log.i(TAG, "Diff: " + appSpaceXY.toString());
-        Log.i(TAG, "Device dir: " + ((getAzimuth()+Math.PI)*180/Math.PI));
-        Log.i(TAG, "Needed dir: " + ((loc.bearingTo(destLoc)+Math.PI))*180/Math.PI);
-        appSpaceXY = appSpaceXY.scalarMultiply(1/scale);
+        compass.setBearingDegrees(bearing);
+        Log.d(TAG, "Calculated azimuth: " + compass.getAzimuth());
+
+        appSpacePosition(distance, xy.subtract(destinationVec));
 
         //Log.i(TAG, "Location: (" + loc.getLatitude() + ", " + loc.getLongitude() + ")");
         //loc.getBearing will return non-zero when 2 consequent points are far enough
         //apart (so you're moving fast enough in a "direction"
         //TODO: Include loc.getBearing() in the average azimuth if != 0 and bearing accuracy is relatively high
         //TODO: loc.BearingTo() would be good for placing an earcon in the dir. of the destination if the user is too off course
+    }
+
+    private void appSpacePosition(float distance, Vector3 currentPath) {
+        if ((adjustedScale == -1) && destinationSet && locationSet) {
+            //startDistance = adjustedScale * distance;
+            adjustedScale = startDistance/distance;
+            Log.i(TAG, "Adjusted Scale Set: " + adjustedScale);
+        }
+
+        //GVR is a right handed coordinate system
+        //where x and z are the horizontal plane, with +z coming toward you
+        //so we need to flip our y and z (lon and altitude)
+        //then negate the new z (lon)
+        Vector3 temp = currentPath;
+        currentPath.y = temp.z;
+        currentPath.z = -temp.y;
+
+        position = (currentPath.direction().scalarMultiply(distance*adjustedScale));
+        //position = currentPath.scalarMultiply(adjustedScale);
+        Log.i(TAG, "Adjusted position: " + position.toString());
+        Log.i(TAG, "Azimuth: " + compass.getAzimuth());
     }
 
     @Override
@@ -170,9 +136,6 @@ public class User implements SensorEventListener, LocationListener {
         lm.removeUpdates(this);
     }
 
-    public void updatePath() {
-        appSpaceXY = (xy.pathTo(destinationXY)).scalarMultiply(1/scale);
-    }
 
     @SuppressLint("MissingPermission")
     private void requestLocationUpdates()

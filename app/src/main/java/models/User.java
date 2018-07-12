@@ -1,8 +1,10 @@
 package models;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -11,6 +13,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 
@@ -33,12 +36,12 @@ public class User implements LocationListener {
     private double adjustedScale = -1;
     boolean locationSet = false, destinationSet = false;
 
-    public User(Activity fa, Context ctx, double startDistance) {
+    public User(Activity fa, Context ctx, LocationManager lm,  double startDistance) {
         activity = fa;
         this.ctx = ctx;
         this.startDistance = startDistance;
         compass = new Compass(activity);
-        lm = (LocationManager)ctx.getSystemService(Context.LOCATION_SERVICE);
+        this.lm = lm;
         Log.i(TAG, "Initialized");
     }
 
@@ -64,13 +67,21 @@ public class User implements LocationListener {
         destination.setLongitude(vec.y);
     }
 
+    public Vector3 getDestinationVec() {
+        return destinationVec;
+    }
+
+    public Vector3 getXy() {
+        return xy;
+    }
+
     public Vector3 getPosition() {
         return position;
     }
 
     public float[] getQuaternion() {
         //360- because we flipped this for a right hand coordinated space
-        Vector3 euler = new Vector3(0, ((-compass.getAzimuth())*Math.PI/180),0);
+        Vector3 euler = new Vector3(0, ((-compass.getAzimuth()) * Math.PI / 180), 0);
         return euler.toQuaternion();
     }
 
@@ -80,8 +91,9 @@ public class User implements LocationListener {
         loc = location;
         location.setAltitude(0);
 
-        xy.x = loc.getLatitude();
-        xy.y = loc.getLongitude();
+        xy = new Vector3(loc.getLatitude(), loc.getLongitude());
+
+        Log.d(TAG, "location: " + xy.toString());
 
         float bearing = location.bearingTo(destination);
         Log.i(TAG, "Bearing: " + bearing);
@@ -103,7 +115,7 @@ public class User implements LocationListener {
     private void appSpacePosition(float distance, Vector3 currentPath) {
         if ((adjustedScale == -1) && destinationSet && locationSet) {
             //startDistance = adjustedScale * distance;
-            adjustedScale = startDistance/distance;
+            adjustedScale = startDistance / distance;
             Log.i(TAG, "Adjusted Scale Set: " + adjustedScale);
         }
 
@@ -115,7 +127,7 @@ public class User implements LocationListener {
         currentPath.y = temp.z;
         currentPath.z = -temp.y;
 
-        position = (currentPath.direction().scalarMultiply(distance*adjustedScale));
+        position = (currentPath.direction().scalarMultiply(distance * adjustedScale));
         //position = currentPath.scalarMultiply(adjustedScale);
         Log.i(TAG, "Adjusted position: " + position.toString());
         Log.i(TAG, "Azimuth: " + compass.getAzimuth());
@@ -123,23 +135,20 @@ public class User implements LocationListener {
 
     @Override
     public void onStatusChanged(String s, int i, Bundle bundle) {
-
+        Log.d(TAG, "TEST");
     }
 
     @Override
     public void onProviderEnabled(String s) {
-        requestLocationUpdates();
+
+        Log.d(TAG, "TEST11");
+
     }
 
     @Override
     public void onProviderDisabled(String s) {
-        lm.removeUpdates(this);
-    }
+        //lm.removeUpdates(this);
+        Log.d(TAG, "TESTwwww");
 
-
-    @SuppressLint("MissingPermission")
-    private void requestLocationUpdates()
-    {
-        lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 0, this);
     }
 }

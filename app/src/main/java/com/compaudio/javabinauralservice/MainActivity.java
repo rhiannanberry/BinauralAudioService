@@ -18,6 +18,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 
 import com.google.vr.sdk.audio.GvrAudioEngine;
 import com.google.vr.sdk.base.AndroidCompat;
@@ -45,13 +46,14 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
     private GvrAudioEngine ae;
     private ArrayList<Integer> musicSourceId;
     private int currentSong = 0, sourceId = GvrAudioEngine.INVALID_ID;
-    private Thread musicLoadingThread;
+    private Thread musicLoadingThread, uiThread;
+
+    private TextView userLocation, userDestination, angleToDestination;
 
     private User user;
 
     protected float[] modelPosition;
 
-    @SuppressLint("MissingPermission")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -77,8 +79,21 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
         modelPosition = new float[]{0.0f, 0.0f, -MAX_MODEL_DISTANCE / 2.0f};
 
         LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        user = new User(this, this, 20);
+        user = new User(this, this, lm, 20);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            checkRequestPermissions();
+            return;
+        }
+        lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, user);
         lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, user);
+
 
         //TODO: Move this to actual spot later
         user.setDestination(new Vector3(33.774744, -84.396382)); //Rocky Mountain pizza
@@ -94,6 +109,33 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
         stop = (Button) findViewById(R.id.buttonStop);
         start.setOnClickListener(this);
         stop.setOnClickListener(this);
+
+        userLocation = (TextView) findViewById(R.id.userLocation);
+        userDestination = (TextView) findViewById(R.id.userDestination);
+        angleToDestination = (TextView) findViewById(R.id.userAngleToDestination);
+        uiThread = new Thread() {
+
+            @Override
+            public void run() {
+                try {
+                    while (!uiThread.isInterrupted()) {
+                        Thread.sleep(100);
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                userLocation.setText("Current Location: " + user.getXy().toString());
+                                userDestination.setText("Destination:      " + user.getDestinationVec().toString());
+                                angleToDestination.setText("Angle to Destination: " + user.compass.getAzimuth());
+                                // update TextView here!
+                            }
+                        });
+                    }
+                } catch (InterruptedException e) {
+                }
+            }
+        };
+
+        uiThread.start();
     }
 
     private static void checkGLError(String label) {
@@ -156,6 +198,8 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
         if (sourceId  != ae.INVALID_ID) {
             ae.update();
         }
+
+
     }
 
     /**
@@ -169,6 +213,7 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
 
     @Override
     public void onFinishFrame(Viewport viewport) {
+
 
     }
 

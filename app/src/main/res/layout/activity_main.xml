@@ -41,6 +41,7 @@
             android:backgroundTint="@color/colorAccent"
 
             android:outlineAmbientShadowColor="@color/colorAccent"/>
+
         <android.support.v7.widget.LinearLayoutCompat
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -52,12 +53,17 @@
                 android:layout_height="match_parent" />
             <Button
                 android:id="@+id/buttonSublime"
-                android:text="Sublime Donuts"
+                android:text="Sublime"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent" />
             <Button
                 android:id="@+id/buttonMarta"
                 android:text="MARTA Midtown"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent" />
+            <Button
+                android:id="@+id/buttonMcd"
+                android:text="Mcdonald's"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent" />
         </android.support.v7.widget.LinearLayoutCompat>

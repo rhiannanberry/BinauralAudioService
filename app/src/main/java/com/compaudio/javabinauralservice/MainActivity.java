@@ -41,7 +41,7 @@ import models.Vector3;
 public class MainActivity extends Activity implements View.OnClickListener, GvrView.StereoRenderer {
     private static final String TAG = "BinauralMainActivity";
 
-    private Button start, stop, destUpdate, marta, sublime, culc;
+    private Button start, stop, destUpdate, marta, sublime, culc, mcd;
     private GvrAudioEngine ae;
     private ArrayList<Integer> musicSourceId;
     private int currentSong = 0, sourceId = GvrAudioEngine.INVALID_ID;
@@ -103,6 +103,8 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
         sublime = (Button) findViewById(R.id.buttonSublime);
         start = (Button) findViewById(R.id.buttonStart);
         stop = (Button) findViewById(R.id.buttonStop);
+        mcd = (Button) findViewById(R.id.buttonMcd);
+        mcd.setOnClickListener(this);
         destUpdate.setOnClickListener(this);
         marta.setOnClickListener(this);
         culc.setOnClickListener(this);
@@ -140,9 +142,16 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
                                 if (sourceId  != ae.INVALID_ID) {
                                     ae.update();
                                 }
-                                       userLocation.setText("Current Location: " + user.getXy().toString());
+                                       userLocation.setText("Current Location: " + user.getWorldPosition().toString());
                                     userDestination.setText("Destination:      " + user.getDestinationVec().toString());
-                                 angleToDestination.setText("Bearing azimuth: " + user.compass.getBearingAzimuth());
+                                    //180 off of current heading
+                                    float offAngle = (user.compass.getBearingDegrees() - user.compass.getAzimuth());
+                                    offAngle = (offAngle < -180) ? offAngle+360 : offAngle;
+                                    offAngle = (offAngle > 180) ? offAngle-360 : offAngle;
+
+                                    //this should be -180 < angle < 180
+                                    //- means shortest turn is left, + means shortest turn is right
+                                 angleToDestination.setText("Bearing azimuth: " + offAngle);
                                     userLocationApp.setText("App position:    " + user.getPosition().toString());
                                             azimuth.setText("Angle to North:  " + user.compass.getAzimuth());
                                             bearing.setText("Bearing:               " + user.compass.getBearingDegrees());
@@ -204,6 +213,10 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
         } else if (view == sublime) {
             latIn.setText("33.781878");
             lonIn.setText("-84.404919");
+        }else if (view == mcd ){
+            latIn.setText("33.785088");
+            lonIn.setText("-84.406588");
+
         } else if (view == start) {
             playMusic();
         } else if (view == stop) {

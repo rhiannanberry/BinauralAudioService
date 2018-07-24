@@ -32,7 +32,7 @@ public class User implements LocationListener {
     private Location loc, destination;
     public Compass compass;
 
-    Vector3 xy = new Vector3(), position = new Vector3(), destinationVec = new Vector3();
+    Vector3 worldPosition = new Vector3(), position = new Vector3(), destinationVec = new Vector3();
 
     private double startDistance = 10.0;
     private double adjustedScale = -1;
@@ -59,24 +59,8 @@ public class User implements LocationListener {
         destinationSet = true;
         this.destination = destination;
         destinationVec = new Vector3(destination.getLatitude(), destination.getLongitude());
-        if (locationSet) {
-            xy = new Vector3(loc.getLatitude(), loc.getLongitude());
-            //Log.d(TAG, "real location: (" + loc.getLatitude() + ", " + loc.getLongitude() + ")");
-
-            Log.d(TAG, "location: " + xy.toString());
-            if (!destinationSet)
-                return;
-            float bearing = loc.bearingTo(destination);
-            Log.i(TAG, "Bearing: " + bearing);
-            float distance = loc.distanceTo(destination);
-            Log.d(TAG, "Location bearing: " + bearing);
-
-            compass.setBearingDegrees(bearing);
-            Log.d(TAG, "Calculated azimuth: " + compass.getAzimuth());
-            Log.d(TAG, "Location difference: " + xy.subtract(destinationVec));
-            scaleSet = false;
-            appSpacePosition(distance, xy.subtract(destinationVec));
-        }
+        scaleSet = false;
+        updatePosition();
     }
 
     public void setDestination(Vector3 vec) {
@@ -85,32 +69,17 @@ public class User implements LocationListener {
         destination = new Location("");
         destination.setLatitude(vec.x);
         destination.setLongitude(vec.y);
-        if (locationSet) {
-            xy = new Vector3(loc.getLatitude(), loc.getLongitude());
-            //Log.d(TAG, "real location: (" + loc.getLatitude() + ", " + loc.getLongitude() + ")");
 
-            Log.d(TAG, "location: " + xy.toString());
-            if (!destinationSet)
-                return;
-            float bearing = loc.bearingTo(destination);
-            Log.i(TAG, "Bearing: " + bearing);
-            float distance = loc.distanceTo(destination);
-            Log.d(TAG, "Location bearing: " + bearing);
-
-            compass.setBearingDegrees(bearing);
-            Log.d(TAG, "Calculated azimuth: " + compass.getAzimuth());
-            Log.d(TAG, "Location difference: " + xy.subtract(destinationVec));
-            scaleSet = false;
-            appSpacePosition(distance, xy.subtract(destinationVec));
-        }
+        scaleSet = false;
+        updatePosition();
     }
 
     public Vector3 getDestinationVec() {
         return destinationVec;
     }
 
-    public Vector3 getXy() {
-        return xy;
+    public Vector3 getWorldPosition() {
+        return worldPosition;
     }
 
     public Vector3 getPosition() {
@@ -119,7 +88,8 @@ public class User implements LocationListener {
 
     public float[] getQuaternion() {
         //360- because we flipped this for a right hand coordinated space
-        Vector3 euler = new Vector3(0, ((-compass.getBearingAzimuth()) * Math.PI / 180), 0);
+        //should only need angle to north, actually????
+        Vector3 euler = new Vector3(0, (-(compass.getAzimuth()) * Math.PI / 180), 0);
         return euler.toQuaternion();
     }
 
@@ -127,13 +97,13 @@ public class User implements LocationListener {
     public void onLocationChanged(Location location) {
 
         locationSet = true;
-        loc = location;
         location.setAltitude(0);
+        loc = location;
+        updatePosition();
 
+/*
         xy = new Vector3(loc.getLatitude(), loc.getLongitude());
-        //Log.d(TAG, "real location: (" + loc.getLatitude() + ", " + loc.getLongitude() + ")");
 
-        Log.d(TAG, "location: " + xy.toString());
         if (!destinationSet)
             return;
         float bearing = location.bearingTo(destination);
@@ -151,6 +121,19 @@ public class User implements LocationListener {
         //apart (so you're moving fast enough in a "direction"
         //TODO: Include loc.getBearing() in the average azimuth if != 0 and bearing accuracy is relatively high
         //TODO: loc.BearingTo() would be good for placing an earcon in the dir. of the destination if the user is too off course
+        */
+    }
+
+    private void updatePosition() {
+        if (destinationSet && locationSet) {
+            //real XY. Remember, latitude is Y, and longitude is X!!!
+            //just flip it in appSpacePosition
+            worldPosition = new Vector3(loc.getLatitude(), loc.getLongitude());
+            float bearing = loc.bearingTo(destination);
+            float distance = loc.distanceTo(destination);
+            compass.setBearingDegrees(bearing);
+            appSpacePosition(distance, worldPosition.subtract(destinationVec));
+        }
     }
 
     private void appSpacePosition(double distance, Vector3 currentPath) {
@@ -161,6 +144,11 @@ public class User implements LocationListener {
             scaleSet = true;
         }
 
+        //lat(x) is our z, and lon(y) is our x
+        currentPath.z = currentPath.x;
+        currentPath.x = currentPath.y;
+
+        currentPath.y = 0;
         Log.d(TAG, "updated current path check: " + currentPath.toString());
 
         position = (currentPath.direction()).scalarMultiply(distance * adjustedScale);

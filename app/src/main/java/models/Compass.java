@@ -75,7 +75,7 @@ public class Compass implements SensorEventListener {
     }
 
     public float getBearingDegrees() {
-        return bearingDegrees%360;
+        return (360+bearingDegrees)%360;
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.compaudio.javabinauralservice;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -37,7 +38,7 @@ import javax.microedition.khronos.egl.EGLConfig;
 import models.User;
 import models.Vector3;
 
-public class MainActivity extends GvrActivity implements View.OnClickListener, GvrView.StereoRenderer {
+public class MainActivity extends Activity implements View.OnClickListener, GvrView.StereoRenderer {
     private static final String TAG = "BinauralMainActivity";
 
     private Button start, stop, destUpdate, marta, sublime, culc;
@@ -58,6 +59,7 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         checkRequestPermissions();
+        /*
         GvrView gv = (GvrView) findViewById(R.id.gvr_view);
 
         gv.setEGLConfigChooser(8, 8, 8, 8, 16, 8);
@@ -73,7 +75,7 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
             AndroidCompat.setSustainedPerformanceMode(this, true);
         }
         setGvrView(gv);
-
+*/
         LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         user = new User(this, this, lm, 10);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -118,8 +120,8 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
         latIn = (EditText) findViewById(R.id.latInput);
         lonIn = (EditText) findViewById(R.id.longInput);
 
-        uiThread = new Thread() {
 
+        uiThread = new Thread() {
             @Override
             public void run() {
                 try {
@@ -128,6 +130,16 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
+                                //update cameraPosition
+                                Vector3 pos = user.getPosition();
+                                float[] q = user.getQuaternion();
+                                ae.setHeadPosition((float)pos.x, (float)pos.y, -(float)pos.z);
+                                //head rotation is easier bc we're just changing one axis rn (yaw)
+                                ae.setHeadRotation(q[0], q[1], q[2], q[3]);
+
+                                if (sourceId  != ae.INVALID_ID) {
+                                    ae.update();
+                                }
                                        userLocation.setText("Current Location: " + user.getXy().toString());
                                     userDestination.setText("Destination:      " + user.getDestinationVec().toString());
                                  angleToDestination.setText("Bearing azimuth: " + user.compass.getBearingAzimuth());
@@ -142,6 +154,28 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
                 }
             }
         };
+
+        new Thread(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.i(TAG, "start of setup");
+                        // Start spatial audio playback of OBJECT_SOUND_FILE at the model position. The
+                        // returned sourceId handle is stored and allows for repositioning the sound object
+                        // whenever the cube position changes.
+                        //IMPORTANT NOTE: AUDIO TRACKS HAVE TO BE SINGLE CHANNEL (MONO) OR ELSE THEY WONT WORK!!!!
+                        ae.preloadSoundFile("music/roots_loop.wav");
+                        sourceId = ae.createSoundObject("music/roots_loop.wav");
+                        ae.setSoundObjectPosition( //stationary, only the user moves
+                                sourceId, 0,0,0);
+                        ae.pause();
+
+                        ae.playSound(sourceId, true /* looped playback */);
+
+                        Log.i(TAG, "End of setup");
+                    }
+                })
+                .start();
 
         uiThread.start();
     }

@@ -16,6 +16,56 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
+        <EditText
+            android:id="@+id/latInput"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:inputType="numberDecimal|numberSigned"
+            android:textColor="@color/colorAccent"
+            android:textColorHint="@color/colorAccent"
+            android:hint="Latitude"
+
+            android:shadowColor="@color/colorAccent"
+            android:backgroundTint="@color/colorAccent"
+            android:outlineAmbientShadowColor="@color/colorAccent"/>
+        <EditText
+            android:id="@+id/longInput"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:inputType="numberDecimal|numberSigned"
+            android:textColorHint="@color/colorAccent"
+
+            android:hint="Longitude"
+            android:textColor="@color/colorAccent"
+            android:shadowColor="@color/colorAccent"
+            android:backgroundTint="@color/colorAccent"
+
+            android:outlineAmbientShadowColor="@color/colorAccent"/>
+        <android.support.v7.widget.LinearLayoutCompat
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <Button
+                android:id="@+id/buttonCulc"
+                android:text="CULC"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent" />
+            <Button
+                android:id="@+id/buttonSublime"
+                android:text="Sublime Donuts"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent" />
+            <Button
+                android:id="@+id/buttonMarta"
+                android:text="MARTA Midtown"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent" />
+        </android.support.v7.widget.LinearLayoutCompat>
+        <Button
+            android:id="@+id/buttonUpdate"
+            android:text="Update Destination"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
         <Button
             android:id="@+id/buttonStart"
             android:text="Start"
@@ -86,6 +136,7 @@
             android:text="Hello World!"
             android:textColor="@color/colorAccent"
             />
+
     </LinearLayout>
 
 

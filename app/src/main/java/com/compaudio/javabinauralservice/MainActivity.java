@@ -18,6 +18,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 
 import com.google.vr.sdk.audio.GvrAudioEngine;
@@ -39,13 +40,14 @@ import models.Vector3;
 public class MainActivity extends GvrActivity implements View.OnClickListener, GvrView.StereoRenderer {
     private static final String TAG = "BinauralMainActivity";
 
-    private Button start, stop;
+    private Button start, stop, destUpdate, marta, sublime, culc;
     private GvrAudioEngine ae;
     private ArrayList<Integer> musicSourceId;
     private int currentSong = 0, sourceId = GvrAudioEngine.INVALID_ID;
     private Thread musicLoadingThread, uiThread;
 
     private TextView userLocation, userDestination, angleToDestination, azimuth, userLocationApp, bearing;
+    private EditText latIn, lonIn;
 
     private User user;
 
@@ -84,7 +86,7 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
 
 
         //TODO: Move this to actual spot later
-        user.setDestination(new Vector3(33.774744, -84.396382)); //CULC
+
 
         //This is the object that does the spatializing
         //In order to actually move the sound, we have to do ae.Update() every "frame" after initializing
@@ -93,8 +95,16 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
         ae.setRoomProperties(1000, 1000, 1000, 0,0,0);
         musicSourceId = new ArrayList<>();
         //UI set up
+        destUpdate = (Button) findViewById(R.id.buttonUpdate);
+        marta = (Button) findViewById(R.id.buttonMarta);
+        culc = (Button) findViewById(R.id.buttonCulc);
+        sublime = (Button) findViewById(R.id.buttonSublime);
         start = (Button) findViewById(R.id.buttonStart);
         stop = (Button) findViewById(R.id.buttonStop);
+        destUpdate.setOnClickListener(this);
+        marta.setOnClickListener(this);
+        culc.setOnClickListener(this);
+        sublime.setOnClickListener(this);
         start.setOnClickListener(this);
         stop.setOnClickListener(this);
 
@@ -104,6 +114,9 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
         userLocationApp = (TextView) findViewById(R.id.userLocationApp);
         azimuth = (TextView) findViewById(R.id.userAngleToNorth);
         bearing = (TextView) findViewById(R.id.userBearing);
+
+        latIn = (EditText) findViewById(R.id.latInput);
+        lonIn = (EditText) findViewById(R.id.longInput);
 
         uiThread = new Thread() {
 
@@ -143,7 +156,21 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
 
     @Override
     public void onClick(View view) {
-        if (view == start) {
+        if (view == destUpdate) {
+            double lat = Double.valueOf(latIn.getText().toString());
+            double lon = Double.valueOf(lonIn.getText().toString());
+            user.setDestination(new Vector3(lat, lon)); //CULC
+
+        } else if (view == marta) {
+            latIn.setText("33.7811125");
+            lonIn.setText("-84.3864757");
+        } else if (view == culc) {
+            latIn.setText("33.774719");
+            lonIn.setText("-84.396287");
+        } else if (view == sublime) {
+            latIn.setText("33.781878");
+            lonIn.setText("-84.404919");
+        } else if (view == start) {
             playMusic();
         } else if (view == stop) {
             stopMusic();

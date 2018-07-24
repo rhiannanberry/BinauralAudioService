@@ -36,7 +36,7 @@ public class Vector3 {
     }
 
     public Vector3 scalarMultiply(double scale) {
-        return new Vector3(x*scale, y*scale, x*scale);
+        return new Vector3(x*scale, y*scale, z*scale);
     }
 
     public Vector3 subtract(Vector3 b) {
@@ -63,7 +63,7 @@ public class Vector3 {
         quat[2] = cosx*cosy*sinz - sinx*siny*cosz;
         quat[3] = cosx*cosy*cosz + sinx*siny*sinz;
 
-        //Log.i("VECTOR3", "(" + quat[0] + ", "+ quat[1]+ ", " + quat[2] + ", " + quat[3] + ")");
+        Log.i("VECTOR3", "(" + quat[0] + ", "+ quat[1]+ ", " + quat[2] + ", " + quat[3] + ")");
         return quat;
     }
 }

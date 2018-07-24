@@ -17,6 +17,8 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 
+import java.math.BigDecimal;
+
 import static android.support.v4.content.ContextCompat.getSystemService;
 
 //data needed to place the user in the GVR 3d space
@@ -34,7 +36,7 @@ public class User implements LocationListener {
 
     private double startDistance = 10.0;
     private double adjustedScale = -1;
-    boolean locationSet = false, destinationSet = false;
+    boolean locationSet = false, destinationSet = false, scaleSet = false;
 
     public User(Activity fa, Context ctx, LocationManager lm,  double startDistance) {
         activity = fa;
@@ -81,7 +83,7 @@ public class User implements LocationListener {
 
     public float[] getQuaternion() {
         //360- because we flipped this for a right hand coordinated space
-        Vector3 euler = new Vector3(0, ((-compass.getAzimuth()) * Math.PI / 180), 0);
+        Vector3 euler = new Vector3(0, ((-compass.getBearingAzimuth()) * Math.PI / 180), 0);
         return euler.toQuaternion();
     }
 
@@ -92,6 +94,7 @@ public class User implements LocationListener {
         location.setAltitude(0);
 
         xy = new Vector3(loc.getLatitude(), loc.getLongitude());
+        //Log.d(TAG, "real location: (" + loc.getLatitude() + ", " + loc.getLongitude() + ")");
 
         Log.d(TAG, "location: " + xy.toString());
 
@@ -102,7 +105,7 @@ public class User implements LocationListener {
 
         compass.setBearingDegrees(bearing);
         Log.d(TAG, "Calculated azimuth: " + compass.getAzimuth());
-
+        Log.d(TAG, "Location difference: " + xy.subtract(destinationVec));
         appSpacePosition(distance, xy.subtract(destinationVec));
 
         //Log.i(TAG, "Location: (" + loc.getLatitude() + ", " + loc.getLongitude() + ")");
@@ -112,22 +115,26 @@ public class User implements LocationListener {
         //TODO: loc.BearingTo() would be good for placing an earcon in the dir. of the destination if the user is too off course
     }
 
-    private void appSpacePosition(float distance, Vector3 currentPath) {
-        if ((adjustedScale == -1) && destinationSet && locationSet) {
+    private void appSpacePosition(double distance, Vector3 currentPath) {
+        if (!scaleSet && destinationSet && locationSet) {
             //startDistance = adjustedScale * distance;
             adjustedScale = startDistance / distance;
             Log.i(TAG, "Adjusted Scale Set: " + adjustedScale);
+            scaleSet = true;
         }
 
         //GVR is a right handed coordinate system
         //where x and z are the horizontal plane, with +z coming toward you
         //so we need to flip our y and z (lon and altitude)
         //then negate the new z (lon)
-        Vector3 temp = currentPath;
-        currentPath.y = temp.z;
-        currentPath.z = -temp.y;
+        //UPDATE: question nothing
+        //double newY = -currentPath.y;
+        //double newZ = -currentPath.y;
+        //currentPath.y = newY;
+        //currentPath.z = newZ;
+        Log.d(TAG, "updated current path check: " + currentPath.toString());
 
-        position = (currentPath.direction().scalarMultiply(distance * adjustedScale));
+        position = (currentPath.direction()).scalarMultiply(distance * adjustedScale);
         //position = currentPath.scalarMultiply(adjustedScale);
         Log.i(TAG, "Adjusted position: " + position.toString());
         Log.i(TAG, "Azimuth: " + compass.getAzimuth());

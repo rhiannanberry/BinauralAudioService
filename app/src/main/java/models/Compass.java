@@ -18,6 +18,7 @@ public class Compass implements SensorEventListener {
     private float[] mGravity = new float[3];
     private float[] mGeomagnetic = new float[3];
     private float azimuth = 0f;
+    private float bearingAzimuth = 0f;
 
     private boolean bearing = false;
     private float bearingDegrees = -1;
@@ -69,6 +70,14 @@ public class Compass implements SensorEventListener {
         return azimuth%360;
     }
 
+    public float getBearingAzimuth() {
+        return bearingAzimuth%360;
+    }
+
+    public float getBearingDegrees() {
+        return bearingDegrees%360;
+    }
+
     @Override
     public void onSensorChanged(SensorEvent sensorEvent) {
         final float alpha = 0.97f;
@@ -116,8 +125,8 @@ public class Compass implements SensorEventListener {
 
                 if (bearing) {
                     if (bearingDegrees != -1) {
-                        azimuth -= bearingDegrees;
-                        Log.d(TAG, "azimuth with bearing (rad): " + azimuth);
+                        bearingAzimuth = azimuth - bearingDegrees;
+                        Log.d(TAG, "azimuth with bearing (rad): " + bearingAzimuth);
 
                     }
                 }

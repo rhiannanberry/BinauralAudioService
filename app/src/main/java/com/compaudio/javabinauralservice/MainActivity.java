@@ -39,16 +39,13 @@ import models.Vector3;
 public class MainActivity extends GvrActivity implements View.OnClickListener, GvrView.StereoRenderer {
     private static final String TAG = "BinauralMainActivity";
 
-    private static final float MAX_MODEL_DISTANCE = 7.0f;
-
-
     private Button start, stop;
     private GvrAudioEngine ae;
     private ArrayList<Integer> musicSourceId;
     private int currentSong = 0, sourceId = GvrAudioEngine.INVALID_ID;
     private Thread musicLoadingThread, uiThread;
 
-    private TextView userLocation, userDestination, angleToDestination;
+    private TextView userLocation, userDestination, angleToDestination, azimuth, userLocationApp, bearing;
 
     private User user;
 
@@ -75,28 +72,19 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
         }
         setGvrView(gv);
 
-
-        modelPosition = new float[]{0.0f, 0.0f, -MAX_MODEL_DISTANCE / 2.0f};
-
         LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        user = new User(this, this, lm, 20);
+        user = new User(this, this, lm, 10);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
             checkRequestPermissions();
             return;
         }
         lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, user);
         lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, user);
+        //lm.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 0, 0, user);
 
 
         //TODO: Move this to actual spot later
-        user.setDestination(new Vector3(33.774744, -84.396382)); //Rocky Mountain pizza
+        user.setDestination(new Vector3(33.774744, -84.396382)); //CULC
 
         //This is the object that does the spatializing
         //In order to actually move the sound, we have to do ae.Update() every "frame" after initializing
@@ -113,6 +101,10 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
         userLocation = (TextView) findViewById(R.id.userLocation);
         userDestination = (TextView) findViewById(R.id.userDestination);
         angleToDestination = (TextView) findViewById(R.id.userAngleToDestination);
+        userLocationApp = (TextView) findViewById(R.id.userLocationApp);
+        azimuth = (TextView) findViewById(R.id.userAngleToNorth);
+        bearing = (TextView) findViewById(R.id.userBearing);
+
         uiThread = new Thread() {
 
             @Override
@@ -123,9 +115,12 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                userLocation.setText("Current Location: " + user.getXy().toString());
-                                userDestination.setText("Destination:      " + user.getDestinationVec().toString());
-                                angleToDestination.setText("Angle to Destination: " + user.compass.getAzimuth());
+                                       userLocation.setText("Current Location: " + user.getXy().toString());
+                                    userDestination.setText("Destination:      " + user.getDestinationVec().toString());
+                                 angleToDestination.setText("Bearing azimuth: " + user.compass.getBearingAzimuth());
+                                    userLocationApp.setText("App position:    " + user.getPosition().toString());
+                                            azimuth.setText("Angle to North:  " + user.compass.getAzimuth());
+                                            bearing.setText("Bearing:               " + user.compass.getBearingDegrees());
                                 // update TextView here!
                             }
                         });
@@ -191,7 +186,7 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
         //update cameraPosition
         Vector3 pos = user.getPosition();
         float[] q = user.getQuaternion();
-        ae.setHeadPosition((float)pos.x, (float)pos.y, (float)pos.z);
+        ae.setHeadPosition((float)pos.x, (float)pos.y, -(float)pos.z);
         //head rotation is easier bc we're just changing one axis rn (yaw)
         ae.setHeadRotation(q[0], q[1], q[2], q[3]);
 
@@ -235,8 +230,8 @@ public class MainActivity extends GvrActivity implements View.OnClickListener, G
                         // returned sourceId handle is stored and allows for repositioning the sound object
                         // whenever the cube position changes.
                         //IMPORTANT NOTE: AUDIO TRACKS HAVE TO BE SINGLE CHANNEL (MONO) OR ELSE THEY WONT WORK!!!!
-                        ae.preloadSoundFile("music/Visager_-_04_-_Village_of_the_Peeping_Frogs_Loop.mp3");
-                        sourceId = ae.createSoundObject("music/Visager_-_04_-_Village_of_the_Peeping_Frogs_Loop.mp3");
+                        ae.preloadSoundFile("music/roots_loop.wav");
+                        sourceId = ae.createSoundObject("music/roots_loop.wav");
                         ae.setSoundObjectPosition( //stationary, only the user moves
                                 sourceId, 0,0,0);
                         ae.pause();

@@ -1,25 +1,13 @@
 package models;
 
-import android.Manifest;
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
-import android.content.pm.PackageManager;
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.FragmentActivity;
+
 import android.util.Log;
-
-import java.math.BigDecimal;
-
-import static android.support.v4.content.ContextCompat.getSystemService;
 
 //data needed to place the user in the GVR 3d space
 public class User implements LocationListener {
@@ -147,13 +135,9 @@ public class User implements LocationListener {
         //lat(x) is our z, and lon(y) is our x
         currentPath.z = currentPath.x;
         currentPath.x = currentPath.y;
-
         currentPath.y = 0;
-        Log.d(TAG, "updated current path check: " + currentPath.toString());
 
         position = (currentPath.direction()).scalarMultiply(distance * adjustedScale);
-        Log.i(TAG, "Adjusted position: " + position.toString());
-        Log.i(TAG, "Azimuth: " + compass.getAzimuth());
     }
 
     @Override
@@ -171,7 +155,7 @@ public class User implements LocationListener {
     @Override
     public void onProviderDisabled(String s) {
         //lm.removeUpdates(this);
-        Log.d(TAG, "TESTwwww");
+        Log.d(TAG, "TEST2");
 
     }
 }

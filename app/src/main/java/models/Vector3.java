@@ -44,7 +44,7 @@ public class Vector3 {
     }
 
     public String toString() {
-        return "(" + Double.toString(x) + ", " + Double.toString(y) + ", " + Double.toString(z) + ")";
+        return "(" + String.format("%3.10s", Double.toString(x)) + ", " + String.format("%3.10s", Double.toString(y)) + ", " + String.format("%3.10s", Double.toString(z)) + ")";
     }
 
     public float[] toQuaternion() {
@@ -63,7 +63,6 @@ public class Vector3 {
         quat[2] = cosx*cosy*sinz - sinx*siny*cosz;
         quat[3] = cosx*cosy*cosz + sinx*siny*sinz;
 
-        Log.i("VECTOR3", "(" + quat[0] + ", "+ quat[1]+ ", " + quat[2] + ", " + quat[3] + ")");
         return quat;
     }
 }

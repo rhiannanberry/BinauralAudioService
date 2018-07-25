@@ -117,16 +117,13 @@ public class Compass implements SensorEventListener {
             if (success) {
                 float orientation[] = new float[3];
                 SensorManager.getOrientation(R, orientation);
-                Log.d(TAG, "Bearing degrees: " + bearingDegrees);
                 azimuth = (float) Math.toDegrees(orientation[0]); // orientation
                 azimuth = (azimuth + 360) % 360;
-                Log.d(TAG, "azimuth (rad): " + azimuth);
 
 
                 if (bearing) {
                     if (bearingDegrees != -1) {
                         bearingAzimuth = azimuth - bearingDegrees;
-                        Log.d(TAG, "azimuth with bearing (rad): " + bearingAzimuth);
 
                     }
                 }

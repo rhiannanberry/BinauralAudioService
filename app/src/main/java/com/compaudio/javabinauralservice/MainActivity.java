@@ -1,81 +1,50 @@
 package com.compaudio.javabinauralservice;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.hardware.SensorManager;
-import android.location.Location;
 import android.location.LocationManager;
-import android.media.MediaPlayer;
 import android.opengl.GLES20;
-import android.provider.Settings;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.ToggleButton;
 
 import com.google.vr.sdk.audio.GvrAudioEngine;
-import com.google.vr.sdk.base.AndroidCompat;
-import com.google.vr.sdk.base.Eye;
-import com.google.vr.sdk.base.GvrActivity;
-import com.google.vr.sdk.base.GvrView;
-import com.google.vr.sdk.base.GvrViewerParams;
-import com.google.vr.sdk.base.HeadTransform;
-import com.google.vr.sdk.base.Viewport;
-
-import java.util.ArrayList;
-
-import javax.microedition.khronos.egl.EGLConfig;
 
 import models.User;
 import models.Vector3;
 
-public class MainActivity extends Activity implements View.OnClickListener, GvrView.StereoRenderer {
+public class MainActivity extends Activity implements View.OnClickListener{
     private static final String TAG = "BinauralMainActivity";
 
-    private Button start, stop, destUpdate, marta, sublime, culc, mcd;
+    private Button toggle, destUpdate, marta, sublime, culc, mcd;
+    private ToggleButton continuousMode, alertMode;
     private GvrAudioEngine ae;
-    private ArrayList<Integer> musicSourceId;
-    private int currentSong = 0, sourceId = GvrAudioEngine.INVALID_ID;
+    //private ArrayList<Integer> musicSourceId;
+    private int currentSong = 0, musicSourceId = GvrAudioEngine.INVALID_ID;
     private Thread musicLoadingThread, uiThread;
 
-    private TextView userLocation, userDestination, angleToDestination, azimuth, userLocationApp, bearing;
+    private TextView userLocation, userDestination, angleToDestination, azimuth, userLocationApp, bearing, destinationDistance;
     private EditText latIn, lonIn;
 
     private User user;
 
     protected float[] modelPosition;
+    private boolean isPlaying = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         checkRequestPermissions();
-        /*
-        GvrView gv = (GvrView) findViewById(R.id.gvr_view);
 
-        gv.setEGLConfigChooser(8, 8, 8, 8, 16, 8);
-        gv.setRenderer(this);
-        gv.setStereoModeEnabled(false);
-        gv.setTransitionViewEnabled(false);
-        gv.enableCardboardTriggerEmulation();
-
-        if (gv.setAsyncReprojectionEnabled(true)) {
-            // Async reprojection decouples the app framerate from the display framerate,
-            // allowing immersive interaction even at the throttled clockrates set by
-            // sustained performance mode.
-            AndroidCompat.setSustainedPerformanceMode(this, true);
-        }
-        setGvrView(gv);
-*/
         LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         user = new User(this, this, lm, 10);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -84,7 +53,6 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
         }
         lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, user);
         lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, user);
-        //lm.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 0, 0, user);
 
 
         //TODO: Move this to actual spot later
@@ -95,22 +63,24 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
         ae = new GvrAudioEngine(this, GvrAudioEngine.RenderingMode.BINAURAL_HIGH_QUALITY);
         ae.setHeadPosition(0,0,0);
         ae.setRoomProperties(1000, 1000, 1000, 0,0,0);
-        musicSourceId = new ArrayList<>();
+        //musicSourceId = new ArrayList<>();
         //UI set up
         destUpdate = (Button) findViewById(R.id.buttonUpdate);
         marta = (Button) findViewById(R.id.buttonMarta);
         culc = (Button) findViewById(R.id.buttonCulc);
         sublime = (Button) findViewById(R.id.buttonSublime);
-        start = (Button) findViewById(R.id.buttonStart);
-        stop = (Button) findViewById(R.id.buttonStop);
+        toggle = (Button) findViewById(R.id.buttonToggle);
         mcd = (Button) findViewById(R.id.buttonMcd);
+        continuousMode = (ToggleButton) findViewById(R.id.continuousModeToggle);
+        alertMode = (ToggleButton) findViewById(R.id.alertModeToggle);
+        continuousMode.setOnClickListener(this);
+        alertMode.setOnClickListener(this);
         mcd.setOnClickListener(this);
         destUpdate.setOnClickListener(this);
         marta.setOnClickListener(this);
         culc.setOnClickListener(this);
         sublime.setOnClickListener(this);
-        start.setOnClickListener(this);
-        stop.setOnClickListener(this);
+        toggle.setOnClickListener(this);
 
         userLocation = (TextView) findViewById(R.id.userLocation);
         userDestination = (TextView) findViewById(R.id.userDestination);
@@ -118,6 +88,7 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
         userLocationApp = (TextView) findViewById(R.id.userLocationApp);
         azimuth = (TextView) findViewById(R.id.userAngleToNorth);
         bearing = (TextView) findViewById(R.id.userBearing);
+        destinationDistance = (TextView) findViewById(R.id.appDistance);
 
         latIn = (EditText) findViewById(R.id.latInput);
         lonIn = (EditText) findViewById(R.id.longInput);
@@ -139,22 +110,23 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
                                 //head rotation is easier bc we're just changing one axis rn (yaw)
                                 ae.setHeadRotation(q[0], q[1], q[2], q[3]);
 
-                                if (sourceId  != ae.INVALID_ID) {
+                                if (musicSourceId  != ae.INVALID_ID) {
                                     ae.update();
                                 }
-                                       userLocation.setText("Current Location: " + user.getWorldPosition().toString());
-                                    userDestination.setText("Destination:      " + user.getDestinationVec().toString());
-                                    //180 off of current heading
-                                    float offAngle = (user.compass.getBearingDegrees() - user.compass.getAzimuth());
-                                    offAngle = (offAngle < -180) ? offAngle+360 : offAngle;
-                                    offAngle = (offAngle > 180) ? offAngle-360 : offAngle;
+                                userLocation.setText(user.getWorldPosition().toString());
+                                userDestination.setText(user.getDestinationVec().toString());
+                                destinationDistance.setText(Float.toString((float)user.getPosition().magnitude()));
+                                //180 off of current heading
+                                float offAngle = (user.compass.getBearingDegrees() - user.compass.getAzimuth());
+                                offAngle = (offAngle < -180) ? offAngle+360 : offAngle;
+                                offAngle = (offAngle > 180) ? offAngle-360 : offAngle;
 
-                                    //this should be -180 < angle < 180
-                                    //- means shortest turn is left, + means shortest turn is right
-                                 angleToDestination.setText("Bearing azimuth: " + offAngle);
-                                    userLocationApp.setText("App position:    " + user.getPosition().toString());
-                                            azimuth.setText("Angle to North:  " + user.compass.getAzimuth());
-                                            bearing.setText("Bearing:               " + user.compass.getBearingDegrees());
+                                //this should be -180 < angle < 180
+                                //- means shortest turn is left, + means shortest turn is right
+                                angleToDestination.setText(Float.toString(offAngle));
+                                userLocationApp.setText(user.getPosition().toString());
+                                azimuth.setText(Float.toString(user.compass.getAzimuth()));
+                                bearing.setText(Float.toString(user.compass.getBearingDegrees()));
                                 // update TextView here!
                             }
                         });
@@ -170,16 +142,16 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
                     public void run() {
                         Log.i(TAG, "start of setup");
                         // Start spatial audio playback of OBJECT_SOUND_FILE at the model position. The
-                        // returned sourceId handle is stored and allows for repositioning the sound object
+                        // returned musicSourceId handle is stored and allows for repositioning the sound object
                         // whenever the cube position changes.
                         //IMPORTANT NOTE: AUDIO TRACKS HAVE TO BE SINGLE CHANNEL (MONO) OR ELSE THEY WONT WORK!!!!
                         ae.preloadSoundFile("music/roots_loop.wav");
-                        sourceId = ae.createSoundObject("music/roots_loop.wav");
+                        musicSourceId = ae.createSoundObject("music/roots_loop.wav");
                         ae.setSoundObjectPosition( //stationary, only the user moves
-                                sourceId, 0,0,0);
+                                musicSourceId, 0,0,0);
                         ae.pause();
 
-                        ae.playSound(sourceId, true /* looped playback */);
+                        ae.playSound(musicSourceId, true /* looped playback */);
 
                         Log.i(TAG, "End of setup");
                     }
@@ -200,6 +172,9 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
     @Override
     public void onClick(View view) {
         if (view == destUpdate) {
+            if (latIn.getText().toString().length() == 0 || lonIn.getText().toString().length() == 0) {
+                return;
+            }
             double lat = Double.valueOf(latIn.getText().toString());
             double lon = Double.valueOf(lonIn.getText().toString());
             user.setDestination(new Vector3(lat, lon)); //CULC
@@ -208,8 +183,9 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
             latIn.setText("33.7811125");
             lonIn.setText("-84.3864757");
         } else if (view == culc) {
-            latIn.setText("33.774719");
-            lonIn.setText("-84.396287");
+            //33.774675, -84.396376
+            latIn.setText("33.774675");
+            lonIn.setText("-84.396376");
         } else if (view == sublime) {
             latIn.setText("33.781878");
             lonIn.setText("-84.404919");
@@ -217,10 +193,32 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
             latIn.setText("33.785088");
             lonIn.setText("-84.406588");
 
-        } else if (view == start) {
-            playMusic();
-        } else if (view == stop) {
-            stopMusic();
+        } else if (view == toggle) {
+            if (isPlaying) {
+                stopMusic();
+                toggle.setText("Start");
+            } else {
+                playMusic();
+                toggle.setText("Stop");
+
+            }
+            Log.i(TAG, "in toggle");
+        } else if (view == continuousMode) {
+            if (continuousMode.isChecked()) {
+                Log.i(TAG, "Continuous mode on");
+                ae.resumeSound(musicSourceId);
+            } else {
+                Log.i(TAG, "Continuous mode off");
+
+                ae.pauseSound(musicSourceId);
+            }
+
+        } else if (view == alertMode) {
+            if (continuousMode.isChecked()) {
+
+            } else {
+
+            }
         }
     }
     @Override
@@ -242,9 +240,10 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
     }
 
     private void playMusic() {
+        isPlaying = true;
         ae.resume();
-        if (sourceId != GvrAudioEngine.INVALID_ID) {
-            ae.playSound(sourceId, true);
+        if (musicSourceId != GvrAudioEngine.INVALID_ID && continuousMode.isChecked()) {
+            ae.playSound(musicSourceId, true);
         }
         Log.i(TAG, "Playing music");
 
@@ -252,79 +251,8 @@ public class MainActivity extends Activity implements View.OnClickListener, GvrV
 
     private void stopMusic() {
         Log.i(TAG, "Stopping music");
+        isPlaying = false;
         ae.pause();
-    }
-
-    @Override
-    public void onNewFrame(HeadTransform headTransform) {
-        //update cameraPosition
-        Vector3 pos = user.getPosition();
-        float[] q = user.getQuaternion();
-        ae.setHeadPosition((float)pos.x, (float)pos.y, -(float)pos.z);
-        //head rotation is easier bc we're just changing one axis rn (yaw)
-        ae.setHeadRotation(q[0], q[1], q[2], q[3]);
-
-        if (sourceId  != ae.INVALID_ID) {
-            ae.update();
-        }
-
-
-    }
-
-    /**
-     * The following overrides are for implementing stereorenderer
-     */
-
-    @Override
-    public void onDrawEye(Eye eye) {
-
-    }
-
-    @Override
-    public void onFinishFrame(Viewport viewport) {
-
-
-    }
-
-    @Override
-    public void onSurfaceChanged(int width, int height) {
-        Log.i(TAG, "onSurfaceChanged");
-    }
-
-    @Override
-    public void onSurfaceCreated(EGLConfig config) {
-        Log.i(TAG, "onSurfaceCreated");
-        //loadMusic();
-        new Thread(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        Log.i(TAG, "start of setup");
-                        // Start spatial audio playback of OBJECT_SOUND_FILE at the model position. The
-                        // returned sourceId handle is stored and allows for repositioning the sound object
-                        // whenever the cube position changes.
-                        //IMPORTANT NOTE: AUDIO TRACKS HAVE TO BE SINGLE CHANNEL (MONO) OR ELSE THEY WONT WORK!!!!
-                        ae.preloadSoundFile("music/roots_loop.wav");
-                        sourceId = ae.createSoundObject("music/roots_loop.wav");
-                        ae.setSoundObjectPosition( //stationary, only the user moves
-                                sourceId, 0,0,0);
-                        ae.pause();
-
-                        ae.playSound(sourceId, true /* looped playback */);
-
-                        Log.i(TAG, "End of setup");
-                    }
-                })
-                .start();
-
-
-        checkGLError("onSurfaceCreated");
-
-    }
-
-    @Override
-    public void onRendererShutdown() {
-        Log.i(TAG, "onRendererShutdown");
     }
 
     /**

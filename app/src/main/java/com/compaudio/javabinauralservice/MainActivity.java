@@ -28,15 +28,14 @@ public class MainActivity extends Activity implements View.OnClickListener{
     private ToggleButton continuousMode, alertMode;
     private GvrAudioEngine ae;
     //private ArrayList<Integer> musicSourceId;
-    private int currentSong = 0, musicSourceId = GvrAudioEngine.INVALID_ID;
+    private int currentSong = 0, musicSourceId = GvrAudioEngine.INVALID_ID, alertSourceId = GvrAudioEngine.INVALID_ID;
     private Thread musicLoadingThread, uiThread;
 
-    private TextView userLocation, userDestination, angleToDestination, azimuth, userLocationApp, bearing, destinationDistance;
+    private TextView userLocation, userDestination, angleToDestination, azimuth, userLocationApp, bearing, destinationDistance, alertActive;
     private EditText latIn, lonIn;
 
     private User user;
 
-    protected float[] modelPosition;
     private boolean isPlaying = false;
 
     @Override
@@ -82,6 +81,7 @@ public class MainActivity extends Activity implements View.OnClickListener{
         sublime.setOnClickListener(this);
         toggle.setOnClickListener(this);
 
+        alertActive = (TextView) findViewById(R.id.isAlertActive);
         userLocation = (TextView) findViewById(R.id.userLocation);
         userDestination = (TextView) findViewById(R.id.userDestination);
         angleToDestination = (TextView) findViewById(R.id.userAngleToDestination);
@@ -94,47 +94,6 @@ public class MainActivity extends Activity implements View.OnClickListener{
         lonIn = (EditText) findViewById(R.id.longInput);
 
 
-        uiThread = new Thread() {
-            @Override
-            public void run() {
-                try {
-                    while (!uiThread.isInterrupted()) {
-                        Thread.sleep(100);
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                //update cameraPosition
-                                Vector3 pos = user.getPosition();
-                                float[] q = user.getQuaternion();
-                                ae.setHeadPosition((float)pos.x, (float)pos.y, -(float)pos.z);
-                                //head rotation is easier bc we're just changing one axis rn (yaw)
-                                ae.setHeadRotation(q[0], q[1], q[2], q[3]);
-
-                                if (musicSourceId  != ae.INVALID_ID) {
-                                    ae.update();
-                                }
-                                userLocation.setText(user.getWorldPosition().toString());
-                                userDestination.setText(user.getDestinationVec().toString());
-                                destinationDistance.setText(Float.toString((float)user.getPosition().magnitude()));
-                                //180 off of current heading
-                                float offAngle = (user.compass.getBearingDegrees() - user.compass.getAzimuth());
-                                offAngle = (offAngle < -180) ? offAngle+360 : offAngle;
-                                offAngle = (offAngle > 180) ? offAngle-360 : offAngle;
-
-                                //this should be -180 < angle < 180
-                                //- means shortest turn is left, + means shortest turn is right
-                                angleToDestination.setText(Float.toString(offAngle));
-                                userLocationApp.setText(user.getPosition().toString());
-                                azimuth.setText(Float.toString(user.compass.getAzimuth()));
-                                bearing.setText(Float.toString(user.compass.getBearingDegrees()));
-                                // update TextView here!
-                            }
-                        });
-                    }
-                } catch (InterruptedException e) {
-                }
-            }
-        };
 
         new Thread(
                 new Runnable() {
@@ -146,17 +105,26 @@ public class MainActivity extends Activity implements View.OnClickListener{
                         // whenever the cube position changes.
                         //IMPORTANT NOTE: AUDIO TRACKS HAVE TO BE SINGLE CHANNEL (MONO) OR ELSE THEY WONT WORK!!!!
                         ae.preloadSoundFile("music/roots_loop.wav");
+                        ae.preloadSoundFile("alerts/chime.wav");
+                        ae.preloadSoundFile("alerts/success.wav");
+
+
                         musicSourceId = ae.createSoundObject("music/roots_loop.wav");
+                        alertSourceId = ae.createSoundObject("alerts/chime.wav");
+                        ae.setSoundObjectPosition(alertSourceId, 0, 0, 0);
                         ae.setSoundObjectPosition( //stationary, only the user moves
                                 musicSourceId, 0,0,0);
                         ae.pause();
 
-                        ae.playSound(musicSourceId, true /* looped playback */);
+                        AlertManager.getInstance().setSourceAndEngine(alertSourceId, ae);
+
+                        ae.playSound(musicSourceId, true);
 
                         Log.i(TAG, "End of setup");
                     }
                 })
                 .start();
+        uiThread = uiFrameThread();
 
         uiThread.start();
     }
@@ -178,6 +146,7 @@ public class MainActivity extends Activity implements View.OnClickListener{
             double lat = Double.valueOf(latIn.getText().toString());
             double lon = Double.valueOf(lonIn.getText().toString());
             user.setDestination(new Vector3(lat, lon)); //CULC
+            AlertManager.getInstance().reset(user.realDistance);
 
         } else if (view == marta) {
             latIn.setText("33.7811125");
@@ -214,9 +183,14 @@ public class MainActivity extends Activity implements View.OnClickListener{
             }
 
         } else if (view == alertMode) {
-            if (continuousMode.isChecked()) {
+            if (alertMode.isChecked()) {
+                Log.i(TAG, "Alert mode on");
+                AlertManager.getInstance().enableAlerts();
+
 
             } else {
+                Log.i(TAG, "Alert mode off");
+                AlertManager.getInstance().disableAlerts();
 
             }
         }
@@ -253,6 +227,69 @@ public class MainActivity extends Activity implements View.OnClickListener{
         Log.i(TAG, "Stopping music");
         isPlaying = false;
         ae.pause();
+    }
+
+    public Thread uiFrameThread() {
+        return new Thread() {
+            @Override
+            public void run() {
+                try {
+                    while (!uiThread.isInterrupted()) {
+                        Thread.sleep(100);
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                updateAudioSimulation();
+                                updateUI();
+                                float offAngle = (user.compass.getBearingDegrees() - user.compass.getAzimuth());
+                                offAngle = (offAngle < -180) ? offAngle+360 : offAngle;
+                                offAngle = (offAngle > 180) ? offAngle-360 : offAngle;
+                                alertSourceId = AlertManager.getInstance().checkAlerts(offAngle, user.realDistance);
+                                //checkAlerts
+                                //off angle, distance,
+
+                                // update TextView here!
+                            }
+                        });
+                    }
+                } catch (InterruptedException e) {
+                }
+            }
+        };
+    }
+
+    private void updateAudioSimulation() {
+        //update cameraPosition
+        Vector3 pos = user.getPosition();
+        float[] q = user.getQuaternion();
+        ae.setHeadPosition((float)pos.x, (float)pos.y, -(float)pos.z);
+        //head rotation is easier bc we're just changing one axis rn (yaw)
+        ae.setHeadRotation(q[0], q[1], q[2], q[3]);
+
+        if (musicSourceId  != ae.INVALID_ID) {
+            ae.update();
+        }
+    }
+
+    private void updateUI() {
+        //180 off of current heading
+        float offAngle = (user.compass.getBearingDegrees() - user.compass.getAzimuth());
+        offAngle = (offAngle < -180) ? offAngle+360 : offAngle;
+        offAngle = (offAngle > 180) ? offAngle-360 : offAngle;
+        //this should be -180 < angle < 180
+        //- means shortest turn is left, + means shortest turn is right
+        userLocation.setText(user.getWorldPosition().toString());
+        userDestination.setText(user.getDestinationVec().toString());
+        destinationDistance.setText(Float.toString((float)user.getPosition().magnitude()));
+        angleToDestination.setText(Float.toString(offAngle));
+        userLocationApp.setText(user.getPosition().toString());
+        azimuth.setText(Float.toString(user.compass.getAzimuth()));
+        bearing.setText(Float.toString(user.compass.getBearingDegrees()));
+        if (AlertManager.getInstance().alertCurrentlyActive) {
+            alertActive.setText("Active");
+        } else {
+            alertActive.setText("Inactive");
+        }
     }
 
     /**

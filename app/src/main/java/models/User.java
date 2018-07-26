@@ -17,12 +17,13 @@ public class User implements LocationListener {
     private Context ctx;
 
     private LocationManager lm;
-    private Location loc, destination;
+    public Location loc, destination;
     public Compass compass;
 
     Vector3 worldPosition = new Vector3(), position = new Vector3(), destinationVec = new Vector3();
 
     private double startDistance = 10.0;
+    public double realDistance=0;
     private double adjustedScale = -1;
     boolean locationSet = false, destinationSet = false, scaleSet = false;
 
@@ -118,9 +119,9 @@ public class User implements LocationListener {
             //just flip it in appSpacePosition
             worldPosition = new Vector3(loc.getLatitude(), loc.getLongitude());
             float bearing = loc.bearingTo(destination);
-            float distance = loc.distanceTo(destination);
+            realDistance = loc.distanceTo(destination);
             compass.setBearingDegrees(bearing);
-            appSpacePosition(distance, worldPosition.subtract(destinationVec));
+            appSpacePosition(realDistance, worldPosition.subtract(destinationVec));
         }
     }
 
